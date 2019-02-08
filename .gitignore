@@ -1,2 +1,5 @@
 *.pyc
 .idea/
+dump/
+tracking/data/*
+tracking/weights/*
