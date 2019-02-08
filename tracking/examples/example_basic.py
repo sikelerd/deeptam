@@ -1,10 +1,11 @@
 from deeptam_tracker.tracker import TrackerCore
-from deeptam_tracker.evaluation.rgbd_sequence import RGBDSequence 
+from deeptam_tracker.evaluation.rgbd_sequence import RGBDSequence
 from deeptam_tracker.evaluation.metrics import position_diff, angle_diff
 from deeptam_tracker.utils.vis_utils import convert_array_to_colorimg
 from PIL import ImageChops
 import matplotlib.pyplot as plt
 import os
+
 
 def simple_evaluation(pr_pose, gt_pose, key_pose, frame_id):
     """ Evaluates a pose prediction
@@ -17,9 +18,10 @@ def simple_evaluation(pr_pose, gt_pose, key_pose, frame_id):
     orientation_err = angle_diff(pr_pose, gt_pose)
     position_change = position_diff(key_pose, gt_pose)
     orientation_change = angle_diff(key_pose, gt_pose)
-    print('position_err:{:6.5f}[m], out of position_change:{:6.5f}[m]'.format(position_err, position_change) )
-    print('orientation_err:{:6.5f}[degree], out of orientation_change:{:6.5f}[degree]'.format(orientation_err, orientation_change) )
-    
+    print('position_err:{:6.5f}[m], out of position_change:{:6.5f}[m]'.format(position_err, position_change))
+    print('orientation_err:{:6.5f}[degree], out of orientation_change:{:6.5f}[degree]'.format(orientation_err, orientation_change))
+
+
 def simple_visualization(image_key, image_cur, image_cur_virtual, frame_id):
     """Visualizes some image results
     
@@ -29,35 +31,35 @@ def simple_visualization(image_key, image_cur, image_cur_virtual, frame_id):
     """
     image_key = convert_array_to_colorimg(image_key.squeeze())
     image_cur = convert_array_to_colorimg(image_cur.squeeze())
-    image_cur_virtual = convert_array_to_colorimg(image_cur_virtual.squeeze())  
-    
-    diff = ImageChops.difference(image_cur, image_cur_virtual) # difference should be small if the predicted pose is correct
+    image_cur_virtual = convert_array_to_colorimg(image_cur_virtual.squeeze())
+
+    diff = ImageChops.difference(image_cur, image_cur_virtual)  # difference should be small if the predicted pose is correct
 
     print('Close window to continue...')
-    
-    plt.subplot(2,2,1)
+
+    plt.subplot(2, 2, 1)
     plt.gca().set_title('Key frame image')
     fig = plt.imshow(image_key)
     fig.axes.get_xaxis().set_visible(False)
     fig.axes.get_yaxis().set_visible(False)
-    plt.subplot(2,2,2)
+    plt.subplot(2, 2, 2)
     plt.gca().set_title('Current frame image {}'.format(frame_id))
     fig = plt.imshow(image_cur)
     fig.axes.get_xaxis().set_visible(False)
     fig.axes.get_yaxis().set_visible(False)
-    plt.subplot(2,2,3)
+    plt.subplot(2, 2, 3)
     plt.gca().set_title('Virtual current frame image {}'.format(frame_id))
     fig = plt.imshow(image_cur_virtual)
     fig.axes.get_xaxis().set_visible(False)
     fig.axes.get_yaxis().set_visible(False)
-    plt.subplot(2,2,4)
+    plt.subplot(2, 2, 4)
     plt.gca().set_title('Difference image')
     fig = plt.imshow(diff)
     fig.axes.get_xaxis().set_visible(False)
     fig.axes.get_yaxis().set_visible(False)
 
     plt.show()
-    
+
 
 def main():
     # initialization
@@ -68,7 +70,7 @@ def main():
 
     sequence = RGBDSequence(datadir)
     intrinsics = sequence.get_sun3d_intrinsics()
-    
+
     tracker_core = TrackerCore(tracking_module_path, checkpoint, intrinsics)
 
     # use first 3 frames as an example, the fisrt frame is selected as key frame
