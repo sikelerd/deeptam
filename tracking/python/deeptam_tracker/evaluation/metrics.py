@@ -3,14 +3,14 @@ import numpy as np
 from .rgbd_sequence import RGBDSequence
 from ..utils.datatypes import *
 
+
 def position_diff(pose1, pose2):
     """Computes the position difference between two poses
 
     pose1: Pose
     pose2: Pose
     """
-    return (pose1.R.transpose()*pose1.t - pose2.R.transpose()*pose2.t).norm()
-
+    return (pose1.R.transpose() * pose1.t - pose2.R.transpose() * pose2.t).norm()
 
 
 def angle_diff(pose1, pose2):
@@ -20,7 +20,8 @@ def angle_diff(pose1, pose2):
     pose2: Pose
     """
     dot = pose1.R.row(2).dot(pose2.R.row(2))
-    return np.rad2deg(np.arccos(np.clip(dot,0,1))) 
+    return np.rad2deg(np.arccos(np.clip(dot, 0, 1)))
+
 
 def rgbd_rpe(gt_poses, pr_poses, timestamps, cmdline_options=None):
     """Runs the rgbd command line tool for the RPE error
@@ -88,5 +89,3 @@ def rgbd_ate(gt_poses, pr_poses, timestamps, cmdline_options=None):
     os.remove(gt_txt)
     os.remove(pr_txt)
     return result
-    
-

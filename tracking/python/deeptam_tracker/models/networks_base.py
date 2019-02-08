@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import tensorflow as tf
 
+
 class TrackingNetworkBase(ABC):
 
     def __init__(self, batch_size=1):
@@ -18,7 +19,6 @@ class TrackingNetworkBase(ABC):
     def placeholders(self):
         """All placeholders required for feeding this network"""
         return self._placeholders
-
 
     @abstractmethod
     def build_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation):
@@ -40,5 +40,6 @@ class TrackingNetworkBase(ABC):
         """
         pass
 
-
-
+    @abstractmethod
+    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, learning_rate=0.1):
+        pass
