@@ -111,7 +111,6 @@ class TrackingNetwork(TrackingNetworkBase):
             flow_inc_prediction = flow_block(flow_input, weights_regularizer=_weights_regularizer)
 
         with tf.variable_scope("net_M3", reuse=None):
-            print()
             motion_inputs = [
                 (flow_inc_prediction['concat0'], 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),

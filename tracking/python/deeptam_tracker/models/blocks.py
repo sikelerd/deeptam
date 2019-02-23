@@ -118,24 +118,18 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
             name = 'motion_conv2_{0}'.format(string.ascii_lowercase[i])
             conv2 = convrelu2(name=name, inputs=conv1, num_outputs=num_outputs, kernel_size=3, stride=1, padding=padding, **conv_params)
             features.append(conv2)
-            print(conv1)
-            print(conv2)
 
         motion_conv2 = tf.concat(features, axis=1, name='motion_conv2', )
-        print(motion_conv2, flush=True)
 
         conv3_kernel_size = {2: 3, 1: 3, 0: 5}
         conv3_stride = {2: 2, 1: 2, 0: 4}
         ks = conv3_kernel_size[resolution_level]
         s = conv3_stride[resolution_level]
         motion_conv3 = convrelu2(name='motion_conv3', inputs=motion_conv2, num_outputs=(96, 96), kernel_size=ks, stride=s, padding=padding, **conv_params)
-        print(motion_conv3)
 
         motion_conv4 = convrelu2(name='motion_conv4', inputs=motion_conv3, num_outputs=(128, 128), kernel_size=3, stride=2, padding=padding, **conv_params)
-        print(motion_conv4)
 
         motion_conv5 = convrelu2(name='motion_conv5', inputs=motion_conv4, num_outputs=(256, 256), kernel_size=3, stride=2, padding=padding, **conv_params)
-        print(motion_conv5)
 
         motion_conv5_shape = motion_conv5.get_shape().as_list()
         batch_size = motion_conv5_shape[0]
@@ -167,16 +161,6 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
         predict_rotation, predict_translation = tf.split(value=mean_prediction, num_or_size_splits=[3, 3], axis=1)
 
         predict_rotation_samples, predict_translation_samples = tf.split(predict_motion, num_or_size_splits=[3, 3], axis=1)
-
-        print(motion_conv3)
-        print(motion_conv4)
-        print(motion_conv5)
-        print(motion_fc1)
-        print(motion_conv6)
-        print(motion_conv7)
-        print(predict_motion)
-        print(predict_rotation, predict_translation)
-        print(predict_rotation_samples, predict_translation_samples)
 
     return {
         'motion_conv5': motion_conv5,
@@ -293,7 +277,6 @@ def _refine(inp, num_outputs, data_format, upsampled_prediction=None, features_d
         if original_shape == new_shape:
             concat_inputs.append(x)
         else:
-            print(original_shape, new_shape)
             concat_inputs.append(tf.slice(x, begin=[0, 0, 0, 0], size=new_shape))
 
     if data_format == 'channels_first':
@@ -322,19 +305,12 @@ def flow_block(block_inputs, weights_regularizer=None, data_format='channels_fir
         conv3 = convrelu2(name='conv3', inputs=conv2_1, num_outputs=(96, 128), kernel_size=3, stride=2, **conv_params)
         conv3_1 = convrelu2(name='conv3_1', inputs=conv3, num_outputs=128, kernel_size=3, stride=1, **conv_params)
 
-        print(conv0, conv0_1)
-        print(conv1, conv1_1)
-        print(conv2, conv2_1)
-        print(conv3, conv3_1)
-
         # expanding part
         with tf.variable_scope('predict_flow3'):
             predict_flow3 = _predict_flow(conv3_1, channels=4, **conv_params)
 
         with tf.variable_scope('upsample_flow3to2'):
             predict_flow3to2 = _upsample_prediction(predict_flow3, 4, data_format=data_format)
-
-        print(predict_flow3, predict_flow3to2)
 
         with tf.variable_scope('refine2'):
             concat2 = _refine(
@@ -344,7 +320,6 @@ def flow_block(block_inputs, weights_regularizer=None, data_format='channels_fir
                 features_direct=conv2_1,
                 data_format=data_format,
             )
-            print(concat2)
 
         with tf.variable_scope('refine1'):
             concat1 = _refine(
@@ -353,7 +328,6 @@ def flow_block(block_inputs, weights_regularizer=None, data_format='channels_fir
                 features_direct=conv1_1,
                 data_format=data_format,
             )
-            print(concat1)
 
         with tf.variable_scope('refine0'):
             concat0 = _refine(
@@ -362,7 +336,6 @@ def flow_block(block_inputs, weights_regularizer=None, data_format='channels_fir
                 features_direct=conv0_1,
                 data_format=data_format,
             )
-            print(concat0)
 
         with tf.variable_scope('predict_flow0'):
             predict_flow0 = _predict_flow(concat0, channels=4, **conv_params)
