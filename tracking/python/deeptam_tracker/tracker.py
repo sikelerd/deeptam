@@ -229,13 +229,7 @@ class TrackerCore:
         self._tracking_mod = load_myNetworks_module_noname(self._tracking_module)
         self._tracking_net = self._tracking_mod.TrackingNetwork()
         self._tracking_net_output = self._tracking_net.build_net(**self._tracking_net.placeholders)
-        # self._tracking_net_output, loss, motion_loss, u_loss = self._tracking_net.build_training_net(**self._tracking_net.placeholders)
-        # print(self._tracking_net_output)
-        # print(loss)
-        # print(motion_loss)
-        # print(u_loss)
-        # return
-        optimistic_restore(self._session, self._checkpoint, verbose=True)
+        optimistic_restore(self._session, self._checkpoint, verbose=False)
         self._writer = tf.summary.FileWriter("dump", self._session.graph)
 
         [self._image_height, self._image_width] = self._tracking_net.placeholders['image_key'].get_shape().as_list()[-2:]

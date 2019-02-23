@@ -9,9 +9,9 @@ class TrackingNetwork(TrackingNetworkBase):
         TrackingNetworkBase.__init__(self, batch_size)
         self._batch_size = batch_size
         self._placeholders = {
-            'depth_key': tf.placeholder(tf.float32, shape=(batch_size, 1, 240, 320)),
-            'image_key': tf.placeholder(tf.float32, shape=(batch_size, 3, 240, 320)),
-            'image_current': tf.placeholder(tf.float32, shape=(batch_size, 3, 240, 320)),
+            'depth_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 1)),
+            'image_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3)),
+            'image_current': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3)),
             'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4)),
             'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3)),
             'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3)),
@@ -19,6 +19,9 @@ class TrackingNetwork(TrackingNetworkBase):
 
     def build_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation):
         _weights_regularizer = None
+        depth_key = tf.transpose(depth_key, [0, 3, 1, 2])
+        image_key = tf.transpose(image_key, [0, 3, 1, 2])
+        image_current = tf.transpose(image_current, [0, 3, 1, 2])
         batch_size = depth_key.get_shape().as_list()[0]
         depth_normalized = depth_key
 
@@ -171,7 +174,6 @@ class TrackingNetwork(TrackingNetworkBase):
         gt_rotation = tf.placeholder(tf.float32, shape=(self._batch_size, 1, 3), name='gt_rotation')
         gt_translation = tf.placeholder(tf.float32, shape=(self._batch_size, 1, 3), name='gt_translation')
         gt_x = tf.concat([gt_rotation, gt_translation], 2, name='gt_x')
-        gt_flow = tf.placeholder(tf.float32, shape=(None, None, 240, 320), name='gt_float')
 
         # motion loss
         alpha = 0.5
