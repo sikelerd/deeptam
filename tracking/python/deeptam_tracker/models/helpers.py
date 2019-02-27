@@ -195,10 +195,19 @@ def apply_motion_increment(R_prev, t_prev, R_inc, t_inc):
         
         
     """
-    R_matrix_prev = sops.angle_axis_to_rotation_matrix(R_prev)
-    R_matrix_inc = sops.angle_axis_to_rotation_matrix(R_inc)
-    R_matrix_next = tf.matmul(R_matrix_inc, R_matrix_prev)
-    R_angleaxis_next = sops.rotation_matrix_to_angle_axis(R_matrix_next)
-    t_next = tf.add(t_inc, tf.squeeze(tf.matmul(R_matrix_inc, tf.expand_dims(t_prev, 2)), [2, ]))
+    r_matrix_prev = sops.angle_axis_to_rotation_matrix(R_prev)
+    r_matrix_inc = sops.angle_axis_to_rotation_matrix(R_inc)
+    r_matrix_next = tf.matmul(r_matrix_inc, r_matrix_prev)
 
-    return R_angleaxis_next, t_next
+    r_angleaxis_next = sops.rotation_matrix_to_angle_axis(r_matrix_next)
+    if r_angleaxis_next.shape[1] == 1:
+        r_angleaxis_next = tf.squeeze(r_angleaxis_next, [1, ])
+
+    t_next = tf.matmul(r_matrix_inc, tf.expand_dims(t_prev, 3))
+    if t_next.shape[1] == 1:
+        t_next = tf.squeeze(t_next, [1, 3, ])
+    else:
+        t_next = tf.squeeze(t_next, [3, ])
+    t_next = tf.add(t_inc, t_next)
+
+    return r_angleaxis_next, t_next

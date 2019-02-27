@@ -11,8 +11,9 @@ def convert_array_to_colorimg(inp):
         image_arr += 0.5
         image_arr *= 255
         image_arr = image_arr.astype(np.uint8)
-    image_arr = image_arr[0:3, :, :]
-    image_arr = np.rollaxis(image_arr, 0, 3)
+    if not image_arr.shape == (240, 320, 3):
+        image_arr = image_arr[0:3, :, :]
+        image_arr = np.rollaxis(image_arr, 0, 3)
     return Image.fromarray(image_arr)
 
 

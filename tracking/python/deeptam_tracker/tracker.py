@@ -267,8 +267,8 @@ class TrackerCore:
             [height, width], inverse depth [1/m]
         """
         self._key_pose = key_pose
-        self._key_image = np.squeeze(key_image)[np.newaxis, :, :, :]
-        self._key_depth = np.squeeze(key_depth)[np.newaxis, np.newaxis, :, :]
+        self._key_image = key_image
+        self._key_depth = key_depth
         self._key_valid_depth_pixels = np.count_nonzero(self._key_depth[np.isfinite(self._key_depth)] > 0)
 
     def compute_current_pose(self, image, pose_guess=None):
@@ -296,6 +296,8 @@ class TrackerCore:
             self._tracking_net.placeholders['depth_key']: self._key_depth,
             self._tracking_net.placeholders['image_current']: image,
             self._tracking_net.placeholders['intrinsics']: self._intrinsics,
+            # self._tracking_net.placeholders['gt_rotation']: np.zeros((1, 3)),
+            # self._tracking_net.placeholders['gt_translation']: np.zeros((1, 3))
         }
         fetch_dict = {
             'predict_rotation': self._tracking_net_output['predict_rotation'],

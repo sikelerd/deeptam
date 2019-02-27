@@ -143,17 +143,17 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
         motion_conv7 = convrelu(name='motion_conv7', inputs=motion_conv6, num_outputs=16, kernel_size=1, padding='valid', **conv_params)
         predict_motion = conv2d(name='motion_predict', inputs=motion_conv7, num_outputs=6, kernel_size=1, padding='valid', **conv_params)
 
-        tf.summary.histogram('predict_motion', predict_motion)
+        # tf.summary.histogram('predict_motion', predict_motion)
 
         scale_motion = 0.1
         predict_motion = scale_motion * tf.reshape(predict_motion, [batch_size, 6, num_predictions])
         mean_prediction = tf.reduce_mean(predict_motion, axis=-1, keep_dims=True)  # [N,6,1]
-        tf.summary.histogram('mean_prediction', mean_prediction)
+        # tf.summary.histogram('mean_prediction', mean_prediction)
 
         deviations = predict_motion - mean_prediction  # [N,6,num_predictions]
-        tf.summary.histogram('deviations', deviations)
+        # tf.summary.histogram('deviations', deviations)
         sigma = tf.matmul(deviations, deviations, transpose_b=True) / num_predictions
-        tf.summary.histogram('sigma_without_eps', sigma)
+        # tf.summary.histogram('sigma_without_eps', sigma)
         sigma = sigma + sigma_epsilon * tf.eye(6, 6, batch_shape=[batch_size], dtype=sigma.dtype)
 
         mean_prediction = tf.squeeze(mean_prediction, axis=[-1])

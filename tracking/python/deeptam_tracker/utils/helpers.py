@@ -68,7 +68,7 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
         If False raises a runtime error f shapes are incompatible.
 
     """
-
+    print(save_file)
     def vprint(*args, **kwargs):
         if verbose: print(*args, flush=True, **kwargs)
 
@@ -82,7 +82,7 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
     reader = tf.train.NewCheckpointReader(save_file)
     saved_shapes = reader.get_variable_to_shape_map()
     var_names = sorted([(var.name, var.dtype, var.name.split(':')[0]) for var in tf.global_variables()
-                        if var.name.split(':')[0] in saved_shapes and not var.name.split(':')[0] in ignore_vars])
+                        if not var.name.split(':')[0] in ignore_vars])
     restore_vars = []
 
     dbg(saved_shapes)
@@ -96,32 +96,37 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
             dbg(var_name, var_dtype, saved_var_name, end='')
             curr_var = tf.get_variable(saved_var_name, dtype=var_dtype)
             var_shape = curr_var.get_shape().as_list()
-            if var_shape == saved_shapes[saved_var_name]:
-                dbg(' shape OK')
-                tmp = reader.get_tensor(saved_var_name)
-                dbg(tmp.dtype)
+            print(var_shape)
+            try:
+                if var_shape == saved_shapes[saved_var_name]:
+                    dbg(' shape OK')
+                    tmp = reader.get_tensor(saved_var_name)
+                    dbg(tmp.dtype)
 
-                # check if there are nonfinite values in the tensor
-                if not np.all(np.isfinite(tmp)):
-                    nonfinite_values = True
-                    print('{0} contains nonfinite values!'.format(saved_var_name), flush=True)
+                    # check if there are nonfinite values in the tensor
+                    if not np.all(np.isfinite(tmp)):
+                        nonfinite_values = True
+                        print('{0} contains nonfinite values!'.format(saved_var_name), flush=True)
 
-                if isinstance(tmp, np.ndarray):
-                    saved_dtype = tf.as_dtype(tmp.dtype)
+                    if isinstance(tmp, np.ndarray):
+                        saved_dtype = tf.as_dtype(tmp.dtype)
+                    else:
+                        print(var_name)
+                        saved_dtype = tf.as_dtype(type(tmp))
+                    dbg(saved_dtype, var_dtype, saved_dtype.is_compatible_with(var_dtype))
+                    if not saved_dtype.is_compatible_with(var_dtype):
+                        raise TypeError('types are not compatible for {0}: saved type {1}, variable type {2}.'.format(
+                            saved_var_name, saved_dtype.name, var_dtype.name))
+
+                    vprint('restoring    ', saved_var_name)
+                    restore_vars.append(curr_var)
                 else:
-                    saved_dtype = tf.as_dtype(type(tmp))
-                dbg(saved_dtype, var_dtype, saved_dtype.is_compatible_with(var_dtype))
-                if not saved_dtype.is_compatible_with(var_dtype):
-                    raise TypeError('types are not compatible for {0}: saved type {1}, variable type {2}.'.format(
-                        saved_var_name, saved_dtype.name, var_dtype.name))
-
-                vprint('restoring    ', saved_var_name)
-                restore_vars.append(curr_var)
-            else:
-                vprint('not restoring', saved_var_name, 'incompatible shape:', var_shape, 'vs', saved_shapes[saved_var_name])
-                if not ignore_incompatible_shapes:
-                    raise RuntimeError(
-                        'failed to restore "{0}" because of incompatible shapes: var: {1} vs saved: {2} '.format(saved_var_name, var_shape, saved_shapes[saved_var_name]))
+                    vprint('not restoring', saved_var_name, 'incompatible shape:', var_shape, 'vs', saved_shapes[saved_var_name])
+                    if not ignore_incompatible_shapes:
+                        raise RuntimeError(
+                            'failed to restore "{0}" because of incompatible shapes: var: {1} vs saved: {2} '.format(saved_var_name, var_shape, saved_shapes[saved_var_name]))
+            except KeyError:
+                print('not restoring {}', saved_var_name)
 
     if nonfinite_values:
         raise RuntimeError('"{0}" contains nonfinite values!'.format(save_file))

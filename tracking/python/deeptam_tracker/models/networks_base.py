@@ -1,19 +1,10 @@
 from abc import ABC, abstractmethod
-import tensorflow as tf
 
 
 class TrackingNetworkBase(ABC):
 
-    def __init__(self, batch_size=1):
-
-        self._placeholders = {
-            'depth_key': tf.placeholder(tf.float32, shape=(batch_size, 1, 96, 128)),
-            'image_key': tf.placeholder(tf.float32, shape=(batch_size, 3, 96, 128)),
-            'image_current': tf.placeholder(tf.float32, shape=(batch_size, 3, 96, 128)),
-            'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4)),
-            'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3)),
-            'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3)),
-        }
+    def __init__(self):
+        self._placeholders = {}
 
     @property
     def placeholders(self):
