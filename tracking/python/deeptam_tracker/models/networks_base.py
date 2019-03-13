@@ -32,5 +32,5 @@ class TrackingNetworkBase(ABC):
         pass
 
     @abstractmethod
-    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, learning_rate=0.1):
+    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation, learning_rate=0.1):
         pass
