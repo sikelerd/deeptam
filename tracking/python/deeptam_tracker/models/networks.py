@@ -6,27 +6,25 @@ from scipy import special
 
 class TrackingNetwork(TrackingNetworkBase):
 
-    def __init__(self, training=False, batch_size=1):
+    def __init__(self, training=False):
         TrackingNetworkBase.__init__(self)
-        self._batch_size = batch_size
         self._placeholders = {
-            'depth_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 1)),
-            'image_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3)),
-            'image_current': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3)),
-            'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4), name='intrinsics'),
-            'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_rotation'),
-            'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_translation'),
+            'depth_key': tf.placeholder(tf.float32, shape=(None, 240, 320, 1)),
+            'image_key': tf.placeholder(tf.float32, shape=(None, 240, 320, 3)),
+            'image_current': tf.placeholder(tf.float32, shape=(None, 240, 320, 3)),
+            'intrinsics': tf.placeholder(tf.float32, shape=(None, 4), name='intrinsics'),
+            'prev_rotation': tf.placeholder(tf.float32, shape=(None, 3), name='prev_rotation'),
+            'prev_translation': tf.placeholder(tf.float32, shape=(None, 3), name='prev_translation'),
         }
         if training:
-            self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(self._batch_size, 3), name='gt_rotation')
-            self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(self._batch_size, 3), name='gt_translation')
+            self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(None, 3), name='gt_rotation')
+            self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(None, 3), name='gt_translation')
 
     def build_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation):
         _weights_regularizer = None
         depth_normalized0 = convert_NHWC_to_NCHW(depth_key)
         key_image0 = convert_NHWC_to_NCHW(image_key)
         current_image0 = convert_NHWC_to_NCHW(image_current)
-        batch_size = depth_key.get_shape().as_list()[0]
 
         # depth_normalized0 = depth_key
         depth_normalized1 = scale_tensor(depth_normalized0, -1)
@@ -62,7 +60,6 @@ class TrackingNetwork(TrackingNetworkBase):
             ]
             motion_inc_prediction1 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=2)
             motion_inc_prediction = motion_inc_prediction1
-            print('m1')
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
                                                   motion_inc_prediction['predict_rotation'],
@@ -94,7 +91,6 @@ class TrackingNetwork(TrackingNetworkBase):
             ]
             motion_inc_prediction2 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=1)
             motion_inc_prediction = motion_inc_prediction2
-            print('m2')
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
                                                   motion_inc_prediction['predict_rotation'],
@@ -125,7 +121,6 @@ class TrackingNetwork(TrackingNetworkBase):
             ]
             motion_inc_prediction3 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=0)
             motion_inc_prediction = motion_inc_prediction3
-            print('m3')
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
                                                   motion_inc_prediction['predict_rotation'],
@@ -136,8 +131,6 @@ class TrackingNetwork(TrackingNetworkBase):
             }
             motion_prediction_list.append(motion_prediction_abs)
 
-
-        print('last')
         num_samples = motion_inc_prediction['num_samples']
         rotation_samples = tf.transpose(motion_inc_prediction['predict_rotation_samples'], [0, 2, 1])
         translation_samples = tf.transpose(motion_inc_prediction['predict_translation_samples'], [0, 2, 1])
@@ -155,10 +148,10 @@ class TrackingNetwork(TrackingNetworkBase):
         result['motion_samples_abs'] = motion_samples_abs
         result['motion_abs'] = motion_abs
 
-        deviations = motion_samples_abs - tf.expand_dims(motion_abs, axis=1)  # [batch_size,num_predictions,6]
+        deviations = motion_samples_abs - tf.expand_dims(motion_abs, axis=1)
         sigma = tf.matmul(deviations, deviations, transpose_a=True) / num_samples
         epsilon = 0.1
-        sigma = tf.add(sigma, epsilon * tf.eye(6, 6, batch_shape=[sigma.shape[0]], dtype=sigma.dtype), name='covariance')
+        sigma = tf.add(sigma, epsilon * tf.eye(6, 6, dtype=sigma.dtype), name='covariance')
 
         result.update(flow_inc_prediction)
         result.update(motion_prediction_abs)
@@ -175,7 +168,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         return result
 
-    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation, learning_rate=0.1):
+    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation):
         result = self.build_net(depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation)
 
         # ground truth
