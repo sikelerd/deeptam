@@ -192,7 +192,7 @@ class TrackingNetwork(TrackingNetworkBase):
         m = tf.squeeze(m)
 
         def modified_bessel(z):
-            return special.kv(0, z)
+            return np.float32(special.kv(0, z))
         uncertainty_loss = 0.5*tf.log(tf.norm(result['covariance'], axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
         uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
         tf.summary.scalar('uncertainty loss', uncertainty_loss)
