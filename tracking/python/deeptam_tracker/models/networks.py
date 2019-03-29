@@ -9,12 +9,12 @@ class TrackingNetwork(TrackingNetworkBase):
     def __init__(self, training=False):
         TrackingNetworkBase.__init__(self)
         self._placeholders = {
-            'depth_key': tf.placeholder(tf.float32, shape=(None, 240, 320, 1)),
-            'image_key': tf.placeholder(tf.float32, shape=(None, 240, 320, 3)),
-            'image_current': tf.placeholder(tf.float32, shape=(None, 240, 320, 3)),
-            'intrinsics': tf.placeholder(tf.float32, shape=(None, 4), name='intrinsics'),
-            'prev_rotation': tf.placeholder(tf.float32, shape=(None, 3), name='prev_rotation'),
-            'prev_translation': tf.placeholder(tf.float32, shape=(None, 3), name='prev_translation'),
+            'depth_key': tf.placeholder(tf.float32, shape=(1, 240, 320, 1)),
+            'image_key': tf.placeholder(tf.float32, shape=(1, 240, 320, 3)),
+            'image_current': tf.placeholder(tf.float32, shape=(1, 240, 320, 3)),
+            'intrinsics': tf.placeholder(tf.float32, shape=(1, 4), name='intrinsics'),
+            'prev_rotation': tf.placeholder(tf.float32, shape=(1, 3), name='prev_rotation'),
+            'prev_translation': tf.placeholder(tf.float32, shape=(1, 3), name='prev_translation'),
         }
         if training:
             self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(None, 3), name='gt_rotation')
