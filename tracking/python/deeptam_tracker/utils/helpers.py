@@ -72,7 +72,8 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
     def vprint(*args, **kwargs):
         if verbose: print(*args, flush=True, **kwargs)
 
-    # def dbg(*args, **kwargs): print(*args, flush=True, **kwargs)
+    # def dbg(*args, **kwargs):
+    #    print(*args, flush=True, **kwargs)
     def dbg(*args, **kwargs):
         pass
 
@@ -82,7 +83,7 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
     reader = tf.train.NewCheckpointReader(save_file)
     saved_shapes = reader.get_variable_to_shape_map()
     var_names = sorted([(var.name, var.dtype, var.name.split(':')[0]) for var in tf.global_variables()
-                        if not var.name.split(':')[0] in ignore_vars])
+                        if not var.name.split(':')[0] in ignore_vars and 'Adam' not in var.name])
     restore_vars = []
 
     dbg(saved_shapes)
@@ -96,7 +97,6 @@ def optimistic_restore(session, save_file, ignore_vars=None, verbose=False, igno
             dbg(var_name, var_dtype, saved_var_name, end='')
             curr_var = tf.get_variable(saved_var_name, dtype=var_dtype)
             var_shape = curr_var.get_shape().as_list()
-            print(var_shape)
             try:
                 if var_shape == saved_shapes[saved_var_name]:
                     dbg(' shape OK')

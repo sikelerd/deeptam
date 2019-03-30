@@ -213,5 +213,4 @@ class TrackingNetwork(TrackingNetworkBase):
         result['motion_loss'] = motion_loss
         result['uncertainty_loss'] = uncertainty_loss
         # result['distance_loss'] = distance_loss
-        result['summary'] = tf.summary.merge_all()
         return result
