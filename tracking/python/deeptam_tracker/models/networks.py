@@ -2,31 +2,34 @@ from .networks_base import TrackingNetworkBase
 from .blocks import *
 from .helpers import *
 from scipy import special
+from PointSetGeneration.depthestimate import tf_nndistance
 
 
 class TrackingNetwork(TrackingNetworkBase):
 
-    def __init__(self, training=False):
+    def __init__(self, batch_size=1, training=False):
         TrackingNetworkBase.__init__(self)
         self._placeholders = {
-            'depth_key': tf.placeholder(tf.float32, shape=(1, 240, 320, 1)),
-            'image_key': tf.placeholder(tf.float32, shape=(1, 240, 320, 3)),
-            'image_current': tf.placeholder(tf.float32, shape=(1, 240, 320, 3)),
-            'intrinsics': tf.placeholder(tf.float32, shape=(1, 4), name='intrinsics'),
-            'prev_rotation': tf.placeholder(tf.float32, shape=(1, 3), name='prev_rotation'),
-            'prev_translation': tf.placeholder(tf.float32, shape=(1, 3), name='prev_translation'),
+            'image_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_key'),
+            'point_key': tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_key'),
+            'image_current': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_current'),
+            'point_current': tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_current'),
+            'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4), name='intrinsics'),
+            'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_rotation'),
+            'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_translation'),
         }
         if training:
-            self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(None, 3), name='gt_rotation')
-            self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(None, 3), name='gt_translation')
+            self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_rotation')
+            self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_translation')
 
-    def build_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation):
+    def build_net(self, image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation):
         _weights_regularizer = None
-        depth_normalized0 = convert_NHWC_to_NCHW(depth_key)
+        shape = image_key.get_shape().as_list()
+        shape[3] = 1
+        depth_normalized0 = convert_NHWC_to_NCHW(tf.constant(0.0, shape=shape))
         key_image0 = convert_NHWC_to_NCHW(image_key)
         current_image0 = convert_NHWC_to_NCHW(image_current)
 
-        # depth_normalized0 = depth_key
         depth_normalized1 = scale_tensor(depth_normalized0, -1)
         depth_normalized2 = scale_tensor(depth_normalized1, -1)
 
@@ -168,8 +171,8 @@ class TrackingNetwork(TrackingNetworkBase):
 
         return result
 
-    def build_training_net(self, depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation):
-        result = self.build_net(depth_key, image_key, image_current, intrinsics, prev_rotation, prev_translation)
+    def build_training_net(self, image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation):
+        result = self.build_net(image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation)
 
         # ground truth
         gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
@@ -187,7 +190,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         # uncertainty loss
         x = tf.expand_dims(tf.subtract(result['motion_abs'], gt_x, name='x'), 1)
-        m = tf.matmul(x, tf.matrix_inverse(result['covariance']))
+        m = tf.matmul(x, tf.matrix_inverse(sops.replace_nonfinite(result['covariance']) + tf.eye(6) * 10e-4))
         m = tf.matmul(m, x, transpose_b=True)
         m = tf.squeeze(m)
 
@@ -197,11 +200,18 @@ class TrackingNetwork(TrackingNetworkBase):
         uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
         tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
+        # distance loss
+        # dists_key, _, _, _ = tf_nndistance.nn_distance(point_key, point_current)
+        # dists_key = tf.reduce_mean(dists_key)
+        # distance_loss = tf.reduce_mean(dists_key - t_norm, axis=0)
+        # tf.summary.scalar('distance_loss', distance_loss)
+
         # overall loss
-        tracking_loss = motion_loss + flow_loss + uncertainty_loss
+        tracking_loss = motion_loss + flow_loss + uncertainty_loss  # + distance_loss
         tf.summary.scalar('tracking_loss', tracking_loss)
         result['loss'] = tracking_loss
         result['motion_loss'] = motion_loss
         result['uncertainty_loss'] = uncertainty_loss
+        # result['distance_loss'] = distance_loss
         result['summary'] = tf.summary.merge_all()
         return result
