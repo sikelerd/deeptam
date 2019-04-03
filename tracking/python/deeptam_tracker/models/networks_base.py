@@ -12,7 +12,7 @@ class TrackingNetworkBase(ABC):
         return self._placeholders
 
     @abstractmethod
-    def build_net(self, image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation):
+    def build_net(self, image_key, point_key, image_current, intrinsics, prev_rotation, prev_translation):
         """Build the tracking network
 
         image_key: the image of the key frame

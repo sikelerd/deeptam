@@ -1,8 +1,10 @@
 from .networks_base import TrackingNetworkBase
 from .blocks import *
 from .helpers import *
+from ..utils.rotation_conversion import angleaxis_to_rotation_matrix
 from scipy import special
 from PointSetGeneration.depthestimate import tf_nndistance
+from open3d import *
 
 
 class TrackingNetwork(TrackingNetworkBase):
@@ -13,20 +15,39 @@ class TrackingNetwork(TrackingNetworkBase):
             'image_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_key'),
             'point_key': tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_key'),
             'image_current': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_current'),
-            'point_current': tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_current'),
             'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4), name='intrinsics'),
             'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_rotation'),
             'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_translation'),
         }
         if training:
+            self._placeholders['point_current'] = tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_current')
             self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_rotation')
             self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_translation')
 
-    def build_net(self, image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation):
+    def build_net(self, image_key, point_key, image_current, intrinsics, prev_rotation, prev_translation):
         _weights_regularizer = None
         shape = image_key.get_shape().as_list()
         shape[3] = 1
-        depth_normalized0 = convert_NHWC_to_NCHW(tf.constant(0.0, shape=shape))
+
+        def to_depth_img(points):
+            imgs = []
+            for p in points:
+                img = np.zeros((240, 320), dtype=np.float32)
+                z = p[:, 0]
+                z_norm = (z - z.min()) / (z.max() - z.min())
+                x = p[:, 1]
+                x_norm = (x - x.min()) / (x.max() - x.min())
+                x_norm = (x_norm * 319).astype(np.uint8)
+                y = p[:, 2]
+                y_norm = (y - y.min()) / (y.max() - y.min())
+                y_norm = (y_norm * 239).astype(np.uint8)
+                for i in range(p.shape[0]):
+                    if z_norm[i] < img[y_norm[i], x_norm[i]] or img[y_norm[i], x_norm[i]] == 0:
+                        img[y_norm[i], x_norm[i]] = z_norm[i]
+                imgs.append(img)
+            return np.array(imgs)
+
+        depth_normalized0 = convert_NHWC_to_NCHW(tf.reshape(tf.py_func(to_depth_img, [point_key], tf.float32), shape))
         key_image0 = convert_NHWC_to_NCHW(image_key)
         current_image0 = convert_NHWC_to_NCHW(image_current)
 
@@ -172,45 +193,58 @@ class TrackingNetwork(TrackingNetworkBase):
         return result
 
     def build_training_net(self, image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation, gt_rotation, gt_translation):
-        result = self.build_net(image_key, point_key, image_current, point_current, intrinsics, prev_rotation, prev_translation)
+        result = self.build_net(image_key, point_key, image_current, intrinsics, prev_rotation, prev_translation)
 
-        # ground truth
-        gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
+        with tf.variable_scope('loss'):
+            # ground truth
+            gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
 
-        # motion loss
-        alpha = 0.5
-        r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
-        t_norm = tf.norm(result['predict_translation'] - gt_translation, axis=1)
-        motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
-        tf.summary.scalar('motion loss', motion_loss)
+            # motion loss
+            alpha = 0.5
+            r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
+            t_norm = tf.norm(result['predict_translation'] - gt_translation, axis=1)
+            motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
+            tf.summary.scalar('motion loss', motion_loss)
 
-        # flow loss
-        flow_loss = 0
-        # tf.summary.scalar('flow loss', flow_loss)
+            # flow loss
+            flow_loss = 0
+            # tf.summary.scalar('flow loss', flow_loss)
 
-        # uncertainty loss
-        x = tf.expand_dims(tf.subtract(result['motion_abs'], gt_x, name='x'), 1)
-        m = tf.matmul(x, tf.matrix_inverse(sops.replace_nonfinite(result['covariance']) + tf.eye(6) * 10e-4))
-        m = tf.matmul(m, x, transpose_b=True)
-        m = tf.squeeze(m)
+            # uncertainty loss
+            x = tf.expand_dims(tf.subtract(result['motion_abs'], gt_x, name='x'), 1)
+            m = tf.matmul(x, tf.matrix_inverse(sops.replace_nonfinite(result['covariance']) + tf.eye(6) * 10e-4))
+            m = tf.matmul(m, x, transpose_b=True)
+            m = tf.squeeze(m)
 
-        def modified_bessel(z):
-            return np.float32(special.kv(0, z))
-        uncertainty_loss = 0.5*tf.log(tf.norm(result['covariance'], axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
-        uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
-        tf.summary.scalar('uncertainty loss', uncertainty_loss)
+            def modified_bessel(z):
+                return np.float32(special.kv(0, z))
+            uncertainty_loss = 0.5*tf.log(tf.norm(result['covariance'], axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
+            uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
+            tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
-        # distance loss
-        # dists_key, _, _, _ = tf_nndistance.nn_distance(point_key, point_current)
-        # dists_key = tf.reduce_mean(dists_key)
-        # distance_loss = tf.reduce_mean(dists_key - t_norm, axis=0)
-        # tf.summary.scalar('distance_loss', distance_loss)
+            # distance loss
+            def apply_movement(rot, trans, points):
+                new_points = []
+                for i in range(rot.shape[0]):
+                    rot_m = angleaxis_to_rotation_matrix(rot[i])
+                    new_p = []
+                    for p in points[i]:
+                        new_p.append(rot_m.dot(p))
+                    new_p = np.array(new_p) - trans[i]
+                    new_points.append(new_p)
+                new_points = np.array(new_points, dtype=np.float32)
+                return new_points
 
-        # overall loss
-        tracking_loss = motion_loss + flow_loss + uncertainty_loss  # + distance_loss
-        tf.summary.scalar('tracking_loss', tracking_loss)
-        result['loss'] = tracking_loss
-        result['motion_loss'] = motion_loss
-        result['uncertainty_loss'] = uncertainty_loss
-        # result['distance_loss'] = distance_loss
+            rotated_points = tf.py_func(apply_movement, [result['predict_rotation'], result['predict_translation'], point_key], tf.float32, stateful=False)
+            dists_key, _, _, _ = tf_nndistance.nn_distance(rotated_points, point_current)
+            distance_loss = tf.reduce_mean(dists_key)
+            tf.summary.scalar('distance_loss', distance_loss)
+
+            # overall loss
+            tracking_loss = motion_loss + flow_loss + uncertainty_loss + distance_loss/10
+            tf.summary.scalar('tracking_loss', tracking_loss)
+            result['loss'] = tracking_loss
+            result['motion_loss'] = motion_loss
+            result['uncertainty_loss'] = uncertainty_loss
+            result['distance_loss'] = distance_loss
         return result
