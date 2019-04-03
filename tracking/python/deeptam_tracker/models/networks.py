@@ -4,7 +4,6 @@ from .helpers import *
 from ..utils.rotation_conversion import angleaxis_to_rotation_matrix
 from scipy import special
 from PointSetGeneration.depthestimate import tf_nndistance
-from open3d import *
 
 
 class TrackingNetwork(TrackingNetworkBase):
