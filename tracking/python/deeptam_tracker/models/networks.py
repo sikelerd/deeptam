@@ -4,6 +4,7 @@ from .helpers import *
 from ..utils.rotation_conversion import angleaxis_to_rotation_matrix
 from scipy import special
 from PointSetGeneration.depthestimate import tf_nndistance
+from specialops.tf_specialops import points_to_depth
 
 
 class TrackingNetwork(TrackingNetworkBase):
@@ -28,25 +29,14 @@ class TrackingNetwork(TrackingNetworkBase):
         shape = image_key.get_shape().as_list()
         shape[3] = 1
 
-        def to_depth_img(points):
-            imgs = []
-            for p in points:
-                img = np.zeros((240, 320), dtype=np.float32)
-                z = p[:, 0]
-                z_norm = (z - z.min()) / (z.max() - z.min())
-                x = p[:, 1]
-                x_norm = (x - x.min()) / (x.max() - x.min())
-                x_norm = (x_norm * 319).astype(np.uint8)
-                y = p[:, 2]
-                y_norm = (y - y.min()) / (y.max() - y.min())
-                y_norm = (y_norm * 239).astype(np.uint8)
-                for i in range(p.shape[0]):
-                    if z_norm[i] < img[y_norm[i], x_norm[i]] or img[y_norm[i], x_norm[i]] == 0:
-                        img[y_norm[i], x_norm[i]] = z_norm[i]
-                imgs.append(img)
-            return np.array(imgs)
+        result = {}
 
-        depth_normalized0 = convert_NHWC_to_NCHW(tf.reshape(tf.py_func(to_depth_img, [point_key], tf.float32), shape))
+        with tf.device('/cpu:0'):
+            depth = points_to_depth(point_key)
+        tf.stop_gradient(depth)
+        result['depth'] = depth
+        depth_normalized = tf.reshape(depth, (shape[0], 240, 320, 1))
+        depth_normalized0 = convert_NHWC_to_NCHW(depth_normalized)
         key_image0 = convert_NHWC_to_NCHW(image_key)
         current_image0 = convert_NHWC_to_NCHW(image_current)
 
@@ -163,8 +153,6 @@ class TrackingNetwork(TrackingNetworkBase):
                                                                      prev_translation_tiled,
                                                                      rotation_samples,
                                                                      translation_samples, )
-
-        result = {}
 
         motion_samples_abs = tf.concat((rot_samples_abs, transl_samples_abs), axis=2)
         motion_abs = tf.concat((r_abs, t_abs), axis=1, name='result')
