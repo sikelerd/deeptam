@@ -31,8 +31,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         result = {}
 
-        with tf.device('/cpu:0'):
-            depth = points_to_depth(point_key)
+        depth = points_to_depth(point_key)
         tf.stop_gradient(depth)
         result['depth'] = depth
         depth_normalized = tf.reshape(depth, (shape[0], 240, 320, 1))
@@ -187,7 +186,7 @@ class TrackingNetwork(TrackingNetworkBase):
             gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
 
             # motion loss
-            alpha = 0.5
+            alpha = 1
             r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
             t_norm = tf.norm(result['predict_translation'] - gt_translation, axis=1)
             motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
@@ -210,28 +209,28 @@ class TrackingNetwork(TrackingNetworkBase):
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
             # distance loss
-            def apply_movement(rot, trans, points):
-                new_points = []
-                for i in range(rot.shape[0]):
-                    rot_m = angleaxis_to_rotation_matrix(rot[i])
-                    new_p = []
-                    for p in points[i]:
-                        new_p.append(rot_m.dot(p))
-                    new_p = np.array(new_p) - trans[i]
-                    new_points.append(new_p)
-                new_points = np.array(new_points, dtype=np.float32)
-                return new_points
-
-            rotated_points = tf.py_func(apply_movement, [result['predict_rotation'], result['predict_translation'], point_key], tf.float32, stateful=False)
-            dists_key, _, _, _ = tf_nndistance.nn_distance(rotated_points, point_current)
-            distance_loss = tf.reduce_mean(dists_key)
-            tf.summary.scalar('distance_loss', distance_loss)
+            # def apply_movement(rot, trans, points):
+            #     new_points = []
+            #     for i in range(rot.shape[0]):
+            #         rot_m = angleaxis_to_rotation_matrix(rot[i])
+            #         new_p = []
+            #         for p in points[i]:
+            #             new_p.append(rot_m.dot(p))
+            #         new_p = np.array(new_p) - trans[i]
+            #         new_points.append(new_p)
+            #     new_points = np.array(new_points, dtype=np.float32)
+            #     return new_points
+            #
+            # rotated_points = tf.py_func(apply_movement, [result['predict_rotation'], result['predict_translation'], point_key], tf.float32, stateful=False)
+            # dists_key, _, _, _ = tf_nndistance.nn_distance(rotated_points, point_current)
+            # distance_loss = tf.reduce_mean(dists_key)
+            # tf.summary.scalar('distance_loss', distance_loss)
 
             # overall loss
-            tracking_loss = motion_loss + flow_loss + uncertainty_loss + distance_loss/10
+            tracking_loss = motion_loss + flow_loss + uncertainty_loss  # + distance_loss/10
             tf.summary.scalar('tracking_loss', tracking_loss)
             result['loss'] = tracking_loss
             result['motion_loss'] = motion_loss
             result['uncertainty_loss'] = uncertainty_loss
-            result['distance_loss'] = distance_loss
+            # result['distance_loss'] = distance_loss
         return result
