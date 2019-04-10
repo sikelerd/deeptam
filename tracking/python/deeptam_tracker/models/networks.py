@@ -187,8 +187,10 @@ class TrackingNetwork(TrackingNetworkBase):
 
             # motion loss
             alpha = 1
-            r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
-            t_norm = tf.norm(result['predict_translation'] - gt_translation, axis=1)
+            predict_rotation = sops.replace_nonfinite(result['predict_rotation'])
+            predict_translation = sops.replace_nonfinite(result['predict_translation'])
+            r_norm = tf.norm(predict_rotation - gt_rotation, axis=1)
+            t_norm = tf.norm(predict_translation - gt_translation, axis=1)
             motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
             tf.summary.scalar('motion loss', motion_loss)
 
