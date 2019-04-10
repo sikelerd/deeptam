@@ -227,7 +227,7 @@ class TrackingNetwork(TrackingNetworkBase):
             # tf.summary.scalar('distance_loss', distance_loss)
 
             # overall loss
-            tracking_loss = motion_loss + flow_loss + uncertainty_loss  # + distance_loss/10
+            tracking_loss = 8*motion_loss + flow_loss + uncertainty_loss  # + distance_loss/10
             tf.summary.scalar('tracking_loss', tracking_loss)
             result['loss'] = tracking_loss
             result['motion_loss'] = motion_loss
