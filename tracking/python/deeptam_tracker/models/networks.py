@@ -199,14 +199,16 @@ class TrackingNetwork(TrackingNetworkBase):
             # tf.summary.scalar('flow loss', flow_loss)
 
             # uncertainty loss
-            x = tf.expand_dims(tf.subtract(result['motion_abs'], gt_x, name='x'), 1)
-            m = tf.matmul(x, tf.matrix_inverse(sops.replace_nonfinite(result['covariance']) + tf.eye(6) * 10e-4))
+            motion_abs = sops.replace_nonfinite(result['motion_abs'])
+            convariance = sops.replace_nonfinite(result['covariance'])
+            x = tf.expand_dims(tf.subtract(motion_abs, gt_x, name='x'), 1)
+            m = tf.matmul(x, tf.matrix_inverse(convariance + tf.eye(6) * 10e-4))
             m = tf.matmul(m, x, transpose_b=True)
             m = tf.squeeze(m)
 
             def modified_bessel(z):
                 return np.float32(special.kv(0, z))
-            uncertainty_loss = 0.5*tf.log(tf.norm(result['covariance'], axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
+            uncertainty_loss = 0.5*tf.log(tf.norm(convariance, axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
             uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
