@@ -1,10 +1,9 @@
 from .networks_base import TrackingNetworkBase
 from .blocks import *
 from .helpers import *
-from ..utils.rotation_conversion import angleaxis_to_rotation_matrix
 from scipy import special
-from PointSetGeneration.depthestimate import tf_nndistance
 from specialops.tf_specialops import points_to_depth
+import sys
 
 
 class TrackingNetwork(TrackingNetworkBase):
@@ -200,15 +199,16 @@ class TrackingNetwork(TrackingNetworkBase):
 
             # uncertainty loss
             motion_abs = sops.replace_nonfinite(result['motion_abs'])
-            convariance = sops.replace_nonfinite(result['covariance'])
-            x = tf.expand_dims(tf.subtract(motion_abs, gt_x, name='x'), 1)
-            m = tf.matmul(x, tf.matrix_inverse(convariance + tf.eye(6) * 10e-4))
+            covariance = sops.replace_nonfinite(result['covariance'])
+            x = tf.stop_gradient(tf.expand_dims(tf.subtract(motion_abs, gt_x, name='x'), 1))
+            m = tf.matmul(x, tf.matrix_inverse(covariance + tf.eye(6) * 1e-4))
             m = tf.matmul(m, x, transpose_b=True)
             m = tf.squeeze(m)
 
             def modified_bessel(z):
                 return np.float32(special.kv(0, z + 0.01))
-            uncertainty_loss = 0.5*tf.log(tf.norm(convariance, axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32))
+
+            uncertainty_loss = 0.5*tf.log(tf.norm(covariance, axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-4)
             uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
