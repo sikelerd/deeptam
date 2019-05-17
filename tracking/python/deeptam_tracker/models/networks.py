@@ -201,14 +201,14 @@ class TrackingNetwork(TrackingNetworkBase):
             motion_abs = sops.replace_nonfinite(result['motion_abs'])
             covariance = sops.replace_nonfinite(result['covariance'])
             x = tf.stop_gradient(tf.expand_dims(tf.subtract(motion_abs, gt_x, name='x'), 1))
-            m = tf.matmul(x, tf.matrix_inverse(covariance + tf.eye(6) * 1e-4))
+            m = tf.matmul(x, tf.matrix_inverse(covariance + tf.eye(6)))
             m = tf.matmul(m, x, transpose_b=True)
             m = tf.squeeze(m)
 
             def modified_bessel(z):
-                return np.float32(special.kv(0, z + 0.01))
+                return np.float32(special.kv(0, z + 1e-4))
 
-            uncertainty_loss = 0.5*tf.log(tf.norm(covariance, axis=[-2, -1])) - 2*tf.log(m/2) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-4)
+            uncertainty_loss = 0.5*tf.log(tf.norm(covariance, axis=[-2, -1])) - 2*tf.log(m/2 + 1e-6) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-6)
             uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
