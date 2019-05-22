@@ -152,16 +152,6 @@ class TrackingNetwork(TrackingNetworkBase):
                                                                      rotation_samples,
                                                                      translation_samples, )
 
-        motion_samples_abs = tf.concat((rot_samples_abs, transl_samples_abs), axis=2)
-        motion_abs = tf.concat((r_abs, t_abs), axis=1, name='result')
-        result['motion_samples_abs'] = motion_samples_abs
-        result['motion_abs'] = motion_abs
-
-        deviations = motion_samples_abs - tf.expand_dims(motion_abs, axis=1)
-        sigma = tf.matmul(deviations, deviations, transpose_a=True) / num_samples
-        epsilon = 0.1
-        sigma = tf.add(sigma, epsilon * tf.eye(6, 6, dtype=sigma.dtype), name='covariance')
-
         result.update(flow_inc_prediction)
         result.update(motion_prediction_abs)
 
@@ -170,7 +160,6 @@ class TrackingNetwork(TrackingNetworkBase):
 
         result['rotation_samples'] = rot_samples_abs
         result['translation_samples'] = transl_samples_abs
-        result['covariance'] = sigma
 
         # additional outputs for debugging
         result['warped_image'] = flow_inputs_and_gt['rendered_image_near']
@@ -186,10 +175,8 @@ class TrackingNetwork(TrackingNetworkBase):
 
             # motion loss
             alpha = 1
-            predict_rotation = sops.replace_nonfinite(result['predict_rotation'])
-            predict_translation = sops.replace_nonfinite(result['predict_translation'])
-            r_norm = tf.norm(predict_rotation - gt_rotation, axis=1)
-            t_norm = tf.norm(predict_translation - gt_translation, axis=1)
+            r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
+            t_norm = tf.norm(result['predict_translation'] - gt_translation, axis=1)
             motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
             tf.summary.scalar('motion loss', motion_loss)
 
@@ -198,18 +185,21 @@ class TrackingNetwork(TrackingNetworkBase):
             # tf.summary.scalar('flow loss', flow_loss)
 
             # uncertainty loss
-            motion_abs = sops.replace_nonfinite(result['motion_abs'])
-            covariance = sops.replace_nonfinite(result['covariance'])
-            x = tf.stop_gradient(tf.expand_dims(tf.subtract(motion_abs, gt_x, name='x'), 1))
-            m = tf.matmul(x, tf.matrix_inverse(covariance + tf.eye(6)))
-            m = tf.matmul(m, x, transpose_b=True)
-            m = tf.squeeze(m)
+            motion_samples_abs = tf.concat((result['rotation_samples'], result['translation_samples']), axis=2)
+            motion_abs = tf.concat((result['predict_rotation'], result['predict_translation']), axis=1)
+            deviations = motion_samples_abs - motion_abs
+            sigma = tf.matmul(tf.expand_dims(deviations, -1), tf.expand_dims(deviations, -2))
+            sigma = tf.reduce_mean(sigma, axis=1, name='covariance')
+            x = tf.stop_gradient(tf.subtract(motion_abs, gt_x, name='x'))
+            m = tf.matmul(tf.expand_dims(x, -2), tf.matrix_inverse(sigma))
+            m = tf.matmul(m, tf.expand_dims(x, -1))
+            m = tf.squeeze(m, axis=[-1, -2])
 
             def modified_bessel(z):
                 return np.float32(special.kv(0, z + 1e-4))
 
-            uncertainty_loss = 0.5*tf.log(tf.norm(covariance, axis=[-2, -1])) - 2*tf.log(m/2 + 1e-6) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-6)
-            uncertainty_loss = tf.reduce_mean(uncertainty_loss, axis=0)
+            uncertainty_loss = 0.5*tf.log(tf.norm(sigma, axis=[-2, -1])) - 2*tf.log(m/2 + 1e-6) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-6)
+            uncertainty_loss = tf.reduce_mean(uncertainty_loss)
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
             # distance loss
