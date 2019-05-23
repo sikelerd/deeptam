@@ -3,6 +3,7 @@ from .blocks import *
 from .helpers import *
 from scipy import special
 from specialops.tf_specialops import points_to_depth
+import tensorflow as tf
 
 class TrackingNetwork(TrackingNetworkBase):
 
@@ -188,10 +189,7 @@ class TrackingNetwork(TrackingNetworkBase):
             deviations = motion_samples_abs - motion_abs
             sigma = tf.matmul(tf.expand_dims(deviations, -1), tf.expand_dims(deviations, -2))
             sigma = tf.reduce_mean(sigma, axis=1, name='covariance')
-            try:
-                sigma_inv = tf.matrix_inverse(sigma)
-            except:
-                sigma_inv = tf.matrix_inverse(sigma + tf.identity(sigma.shape) * 1e-6)
+            sigma_inv = tf.matrix_inverse(sigma)
 
             x = tf.stop_gradient(tf.subtract(motion_abs, gt_x, name='x'))
             m = tf.matmul(tf.expand_dims(x, -2), sigma_inv)
