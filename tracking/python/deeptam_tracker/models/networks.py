@@ -200,7 +200,7 @@ class TrackingNetwork(TrackingNetworkBase):
                 return np.float32(special.kv(0, z + 1e-4))
 
             uncertainty_loss = 0.5*tf.log(tf.norm(sigma, axis=[-2, -1])) - 2*tf.log(m/2 + 1e-6) - tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-6)
-            uncertainty_loss = tf.reduce_mean(uncertainty_loss)
+            uncertainty_loss = tf.abs(tf.reduce_mean(uncertainty_loss), name='uncertainty_loss')
             tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
             # distance loss
