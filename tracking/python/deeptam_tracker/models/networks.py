@@ -65,7 +65,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         with tf.variable_scope("net_M1", reuse=None):
             motion_inputs = [
-                (flow_inc_prediction['concat0'], 32),
+                (tf.stop_gradient(flow_inc_prediction['concat0']), 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
             motion_inc_prediction1 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=2)
@@ -96,7 +96,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         with tf.variable_scope("net_M2", reuse=None):
             motion_inputs = [
-                (flow_inc_prediction['concat0'], 32),
+                (tf.stop_gradient(flow_inc_prediction['concat0']), 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
             motion_inc_prediction2 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=1)
@@ -126,7 +126,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
         with tf.variable_scope("net_M3", reuse=None):
             motion_inputs = [
-                (flow_inc_prediction['concat0'], 32),
+                (tf.stop_gradient(flow_inc_prediction['concat0']), 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
             motion_inc_prediction3 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=0)
