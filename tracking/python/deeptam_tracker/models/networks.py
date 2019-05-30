@@ -145,7 +145,7 @@ class TrackingNetwork(TrackingNetworkBase):
         rotation_samples = tf.transpose(motion_inc_prediction['predict_rotation_samples'], [0, 2, 1])
         translation_samples = tf.transpose(motion_inc_prediction['predict_translation_samples'], [0, 2, 1])
         prev_rotation_tiled = tf.tile(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1), [1, num_samples, 1])
-        prev_translation_tiled = tf.tile(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1), [1, num_samples, 1])
+        prev_translation_tiled = tf.tile(tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1), [1, num_samples, 1])
         rot_samples_abs, transl_samples_abs = apply_motion_increment(prev_rotation_tiled,
                                                                      prev_translation_tiled,
                                                                      rotation_samples,
