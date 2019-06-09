@@ -220,6 +220,8 @@ def _upsample_prediction(inp, num_outputs, **kwargs):
         activation=None,
         kernel_initializer=default_weights_initializer(),
         name="upconv",
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
+        trainable=False,
         **kwargs,
     )
     return output
@@ -253,6 +255,8 @@ def _refine(inp, num_outputs, data_format, upsampled_prediction=None, features_d
         kernel_initializer=default_weights_initializer(),
         data_format=data_format,
         name="upconv",
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
+        trainable=False,
         **kwargs,
     )
 
@@ -288,7 +292,7 @@ def _refine(inp, num_outputs, data_format, upsampled_prediction=None, features_d
 def flow_block(block_inputs, weights_regularizer=None, data_format='channels_first'):
     """Creates a flow block
     """
-    conv_params = {'kernel_regularizer': weights_regularizer, 'data_format': data_format}
+    conv_params = {'kernel_regularizer': weights_regularizer, 'data_format': data_format, 'trainable': False}
     fc_params = {'kernel_regularizer': weights_regularizer, }
 
     with tf.variable_scope('flowdepth'):
