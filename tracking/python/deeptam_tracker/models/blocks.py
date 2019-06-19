@@ -87,7 +87,7 @@ def create_flow_inputs_and_gt(
     return result
 
 
-def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sigma_epsilon=0.1, data_format='channels_first'):
+def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sigma_epsilon=0.1, data_format='channels_first', trainable=True):
     """Creates a motion network
     
     block_inputs: [(Tensor, num_outputs)]
@@ -99,8 +99,8 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
     
     Returns predict rotation and translation
     """
-    conv_params = {'kernel_regularizer': weights_regularizer, 'data_format': data_format}
-    fc_params = {'kernel_regularizer': weights_regularizer}
+    conv_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'data_format': data_format, 'trainable': trainable}
+    fc_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'trainable': trainable}
     padding = 'valid'
 
     conv1_kernel_size = {2: 3, 1: 5, 0: 5}
@@ -221,6 +221,7 @@ def _upsample_prediction(inp, num_outputs, **kwargs):
         kernel_initializer=default_weights_initializer(),
         name="upconv",
         kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
+        bias_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
         trainable=False,
         **kwargs,
     )
@@ -256,6 +257,7 @@ def _refine(inp, num_outputs, data_format, upsampled_prediction=None, features_d
         data_format=data_format,
         name="upconv",
         kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
+        bias_regularizer=tf.contrib.layers.l2_regularizer(scale=0.001),
         trainable=False,
         **kwargs,
     )
@@ -292,8 +294,8 @@ def _refine(inp, num_outputs, data_format, upsampled_prediction=None, features_d
 def flow_block(block_inputs, weights_regularizer=None, data_format='channels_first'):
     """Creates a flow block
     """
-    conv_params = {'kernel_regularizer': weights_regularizer, 'data_format': data_format, 'trainable': False}
-    fc_params = {'kernel_regularizer': weights_regularizer, }
+    conv_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'data_format': data_format, 'trainable': False}
+    fc_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, }
 
     with tf.variable_scope('flowdepth'):
         # contracting part
