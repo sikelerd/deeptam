@@ -4,6 +4,8 @@ from .helpers import *
 from scipy import special
 from specialops.tf_specialops import points_to_depth
 import tensorflow as tf
+from tensorflow.python.framework import function
+
 
 class TrackingNetwork(TrackingNetworkBase):
 
@@ -48,8 +50,6 @@ class TrackingNetwork(TrackingNetworkBase):
         current_image1 = scale_tensor(current_image0, -1)
         current_image2 = scale_tensor(current_image1, -1)
 
-        prev_translation = tf.stop_gradient(tf.multiply(prev_translation, [[0.1, 1.0, 1.0]]))
-
         motion_prediction_list = [{'predict_rotation': prev_rotation, 'predict_translation': prev_translation}]
 
         with tf.variable_scope("net_F1", reuse=None):
@@ -70,7 +70,7 @@ class TrackingNetwork(TrackingNetworkBase):
                 (flow_inc_prediction['concat0'], 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
-            motion_inc_prediction1 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=2)
+            motion_inc_prediction1 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=2, trainable=True)
             motion_inc_prediction = motion_inc_prediction1
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
@@ -102,7 +102,7 @@ class TrackingNetwork(TrackingNetworkBase):
                 (flow_inc_prediction['concat0'], 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
-            motion_inc_prediction2 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=1)
+            motion_inc_prediction2 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=1, trainable=True)
             motion_inc_prediction = motion_inc_prediction2
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
@@ -133,7 +133,7 @@ class TrackingNetwork(TrackingNetworkBase):
                 (flow_inc_prediction['concat0'], 32),
                 (tf.stop_gradient(flow_inputs_and_gt['rendered_depth_near_far']), 16),
             ]
-            motion_inc_prediction3 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=0)
+            motion_inc_prediction3 = motion_block(motion_inputs, weights_regularizer=_weights_regularizer, resolution_level=0, trainable=True)
             motion_inc_prediction = motion_inc_prediction3
             r_abs, t_abs = apply_motion_increment(tf.expand_dims(motion_prediction_list[-1]['predict_rotation'], axis=1),
                                                   tf.expand_dims(motion_prediction_list[-1]['predict_translation'], axis=1),
@@ -159,8 +159,6 @@ class TrackingNetwork(TrackingNetworkBase):
         result.update(flow_inc_prediction)
         result.update(motion_prediction_abs)
 
-        result['factored_translation'] = tf.multiply(result['predict_translation'], [[10.0, 1.0, 1.0]])
-
         merged = tf.summary.merge_all()
         result['summary'] = merged
 
@@ -177,14 +175,27 @@ class TrackingNetwork(TrackingNetworkBase):
 
         with tf.variable_scope('loss'):
             # ground truth
-            gt_t = tf.stop_gradient(tf.multiply(gt_translation, [[0.1, 1.0, 1.0]]))
-            gt_x = tf.concat([gt_rotation, gt_t], 1, name='gt_x')
+            gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
 
             # motion loss
             alpha = 5
-            r_norm = tf.norm(result['predict_rotation'] - gt_rotation, axis=1)
-            t_norm = tf.norm(result['predict_translation'] - gt_t, axis=1)
-            motion_loss = tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
+
+            # fix instability of tf.norm for very small or 0 values
+            # (https://github.com/tensorflow/tensorflow/issues/12071)
+            @function.Defun(tf.float32, tf.float32)
+            def norm_grad(z, dy):
+                return dy * (z / (tf.norm(z) + 1.0e-19))
+
+            @function.Defun(tf.float32, grad_func=norm_grad)
+            def norm(z):
+                return tf.norm(z)
+
+            def norm_axis1(z):
+                return tf.map_fn(lambda y: norm(y), z)
+
+            r_norm = norm_axis1(result['predict_rotation'] - gt_rotation)
+            t_norm = norm_axis1(result['predict_translation'] - gt_translation)
+            motion_loss = 10 * tf.reduce_mean(tf.add(alpha*r_norm, t_norm), axis=0, name='motion_loss')
             # tf.summary.scalar('motion loss', motion_loss)
 
             # flow loss
@@ -199,7 +210,6 @@ class TrackingNetwork(TrackingNetworkBase):
             sigma = tf.reduce_mean(sigma, axis=1, name='covariance')
 
             def matrix_inverse(mat):
-                print('cond', mat, np.linalg.cond(mat))
                 r_mat = np.zeros(mat.shape, dtype=np.float32)
                 for i in range(mat.shape[0]):
                     if np.linalg.cond(mat[i]) > 100:
@@ -208,7 +218,6 @@ class TrackingNetwork(TrackingNetworkBase):
                         r_mat[i] = np.float32(np.linalg.inv(mat[i]))
                     except np.linalg.LinAlgError:
                         r_mat[i] = np.float32(np.linalg.inv(mat[i] + np.random.random_sample(mat[i].shape)))
-                print(r_mat)
                 return r_mat
             sigma_inv = tf.reshape(tf.py_func(matrix_inverse, [sigma], tf.float32), (-1, 1, 6, 6))
 
@@ -218,17 +227,16 @@ class TrackingNetwork(TrackingNetworkBase):
             m = tf.squeeze(m, axis=[-1, -2])
 
             def modified_bessel(z):
-                return np.float32(special.kv(4, z + 1e-4))
+                return np.float32(special.kv(0, z + 1.0))
 
             p1 = 0.5*tf.log(tf.norm(sigma, axis=[-2, -1]) + 1e-6)
             p2 = 2*tf.log(m/2 + 1e-6)
             p3 = tf.log(tf.py_func(modified_bessel, [tf.sqrt(2*m)], tf.float32) + 1e-6)
-            p1 = tf.Print(p1, [p1, p2, p3, gt_x, result['predict_rotation'], result['predict_translation'], motion_samples_abs, motion_abs, deviations], summarize=5000)
 
             uncertainty_loss = p1 - p2 - p3
             uncertainty_loss = tf.abs(tf.reduce_mean(uncertainty_loss), name='uncertainty_loss')
-            uncertainty_loss = tf.constant(0.0)
-            tf.summary.scalar('uncertainty loss', uncertainty_loss)
+            # uncertainty_loss = tf.constant(0, dtype=tf.float32)
+            # tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
             # distance loss
             # def apply_movement(rot, trans, points):

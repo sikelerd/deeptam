@@ -100,7 +100,8 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
     Returns predict rotation and translation
     """
     conv_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'data_format': data_format, 'trainable': trainable}
-    fc_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'trainable': trainable}
+    fc_params = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer}
+    conv_params2 = {'kernel_regularizer': weights_regularizer, 'bias_regularizer': weights_regularizer, 'data_format': data_format}
     padding = 'valid'
 
     conv1_kernel_size = {2: 3, 1: 5, 0: 5}
@@ -138,9 +139,9 @@ def motion_block(block_inputs, weights_regularizer=None, resolution_level=0, sig
         motion_fc1 = fcrelu(name='motion_fc1', inputs=tf.contrib.layers.flatten(motion_conv5), num_outputs=values_per_prediction * num_predictions, **fc_params)
 
         motion_fc1_reshaped = tf.reshape(motion_fc1, [-1, values_per_prediction, num_predictions, 1])
-        motion_conv6 = convrelu(name='motion_conv6', inputs=motion_fc1_reshaped, num_outputs=values_per_prediction, kernel_size=1, padding='valid', **conv_params)
-        motion_conv7 = convrelu(name='motion_conv7', inputs=motion_conv6, num_outputs=16, kernel_size=1, padding='valid', **conv_params)
-        predict_motion = conv2d(name='motion_predict', inputs=motion_conv7, num_outputs=6, kernel_size=1, padding='valid', **conv_params)
+        motion_conv6 = convrelu(name='motion_conv6', inputs=motion_fc1_reshaped, num_outputs=values_per_prediction, kernel_size=1, padding='valid', **conv_params2)
+        motion_conv7 = convrelu(name='motion_conv7', inputs=motion_conv6, num_outputs=16, kernel_size=1, padding='valid', **conv_params2)
+        predict_motion = conv2d(name='motion_predict', inputs=motion_conv7, num_outputs=6, kernel_size=1, padding='valid', **conv_params2)
 
         # tf.summary.histogram('predict_motion', predict_motion)
 
