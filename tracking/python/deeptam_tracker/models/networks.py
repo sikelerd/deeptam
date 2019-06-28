@@ -13,21 +13,19 @@ class TrackingNetwork(TrackingNetworkBase):
         TrackingNetworkBase.__init__(self)
         self._placeholders = {
             'image_key': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_key'),
-            'point_key': tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_key'),
+            'point_key': tf.placeholder(tf.float32, shape=(batch_size, 8000, 3), name='point_key'),
             'image_current': tf.placeholder(tf.float32, shape=(batch_size, 240, 320, 3), name='image_current'),
             'intrinsics': tf.placeholder(tf.float32, shape=(batch_size, 4), name='intrinsics'),
             'prev_rotation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_rotation'),
             'prev_translation': tf.placeholder(tf.float32, shape=(batch_size, 3), name='prev_translation'),
         }
         if training:
-            self._placeholders['point_current'] = tf.placeholder(tf.float32, shape=(batch_size, None, 3), name='point_current')
+            self._placeholders['point_current'] = tf.placeholder(tf.float32, shape=(batch_size, 8000, 3), name='point_current')
             self._placeholders['gt_rotation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_rotation')
             self._placeholders['gt_translation'] = tf.placeholder(tf.float32, shape=(batch_size, 3), name='gt_translation')
 
     def build_net(self, image_key, point_key, image_current, intrinsics, prev_rotation, prev_translation):
         _weights_regularizer = tf.contrib.layers.l2_regularizer(scale=1e-4)
-        shape = image_key.get_shape().as_list()
-        shape[3] = 1
 
         result = {}
 
