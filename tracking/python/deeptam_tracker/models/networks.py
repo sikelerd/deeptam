@@ -233,7 +233,7 @@ class TrackingNetwork(TrackingNetworkBase):
 
             uncertainty_loss = p1 - p2 - p3
             uncertainty_loss = tf.abs(tf.reduce_mean(uncertainty_loss), name='uncertainty_loss')
-            # uncertainty_loss = tf.constant(0, dtype=tf.float32)
+            uncertainty_loss = tf.constant(0, dtype=tf.float32)
             # tf.summary.scalar('uncertainty loss', uncertainty_loss)
 
             # distance loss
