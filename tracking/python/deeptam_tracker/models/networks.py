@@ -176,7 +176,7 @@ class TrackingNetwork(TrackingNetworkBase):
             gt_x = tf.concat([gt_rotation, gt_translation], 1, name='gt_x')
 
             # motion loss
-            alpha = 5
+            alpha = 1
 
             # fix instability of tf.norm for very small or 0 values
             # (https://github.com/tensorflow/tensorflow/issues/12071)
@@ -255,7 +255,7 @@ class TrackingNetwork(TrackingNetworkBase):
             # tf.summary.scalar('distance_loss', distance_loss)
 
             # overall loss
-            tracking_loss = (motion_loss + flow_loss + uncertainty_loss)
+            tracking_loss = (motion_loss + flow_loss + uncertainty_loss) * 10
             tf.summary.scalar('tracking_loss', tracking_loss)
             result['loss'] = tracking_loss
             result['motion_loss'] = motion_loss
